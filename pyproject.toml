@@ -1,0 +1,36 @@
+[project]
+name = "lightgun"
+version = "0.1.0"
+description = "Camera-based light gun system: stationary camera watches the screen, guns emit a laser dot."
+requires-python = ">=3.11"
+dependencies = [
+    "opencv-python>=4.9",
+    "numpy>=1.26",
+    "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+lightgun = "lightgun.app:main"
+lightgun-detect = "lightgun.detect:main"
+lightgun-calibrate = "lightgun.calibrate:main"
+lightgun-guns = "lightgun.guns:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

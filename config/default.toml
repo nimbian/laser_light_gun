@@ -1,0 +1,95 @@
+# Light gun system configuration.
+# [filter] is a placeholder for Phase 3. Edit values here rather than in code.
+
+[camera]
+# OpenCV device index. On Windows the C920 is usually 0.
+index = 0
+# Capture backend. Windows: "dshow" (DirectShow) or "msmf" (Media Foundation).
+# dshow tends to honor manual exposure on the C920; msmf often fights it.
+backend = "dshow"
+width = 1280
+height = 720
+fps = 30
+# Force MJPEG. Without this the C920 falls back to YUY2 and caps framerate.
+fourcc = "MJPG"
+
+# --- Manual exposure/focus. The whole detection premise depends on these. ---
+# autofocus 0 = off. In a near-black crushed scene autofocus hunts forever
+# and shifts the dot; lock it.
+autofocus = 0
+focus = 0            # 0..255-ish; set once the lens is sharp on the screen plane.
+# auto_exposure on the C920/dshow: 0.25 = manual, 0.75 = auto (OpenCV quirk).
+# Some builds instead want 1 = manual, 3 = auto. The capture module tries both.
+auto_exposure = 0.25
+# exposure on dshow is negative log2 seconds. More negative = darker.
+# Start around -7 and crank down until only the laser dot survives.
+exposure = -7
+gain = 0
+
+[detection]
+# Grayscale brightness threshold (0-255). A pixel must exceed this to be
+# considered part of a dot. Raise until screen content never crosses it.
+threshold = 220
+# Blob area bounds in pixels. Rejects sensor noise (too small) and glare/
+# reflections (too big).
+min_area = 2.0
+max_area = 500.0
+# Circularity 0..1 (1 = perfect circle). Loose by default so a motion-smeared
+# dot still passes.
+min_circularity = 0.3
+# Annulus (ring) sampled around the blob center to read true hue, since a
+# saturated core is white. Radii in pixels, relative to the centroid.
+annulus_inner = 3.0
+annulus_outer = 8.0
+
+[laser]
+# "always":  laser on while the app runs; aim is tracked every frame and the
+#            trigger clicks at the latest tracked position. Default; lowest latency.
+# "on_fire": the gun lights the laser only when the trigger is pulled, and the
+#            click lands at the first dot seen after the pull. No visible dot
+#            between shots, but adds >= 1 camera frame of latency (~33-66 ms on
+#            the C920) and no cursor tracking between shots.
+# Override per gun with laser_mode under [guns.pN]. Calibration always uses "always".
+mode = "always"
+fire_pulse_ms = 100     # on_fire: minimum time the laser stays lit per pull
+# on_fire: drop the shot if no dot appears within this long after the pull.
+# Must cover camera pipeline latency plus a frame; raise it if shots go missing.
+fire_window_ms = 250
+
+[guns.p1]
+color = "red"
+# OpenCV HSV hue is 0-180. Red wraps around 0/180, so two ranges.
+hue_ranges = [[0, 12], [168, 180]]
+serial_port = "auto"
+offset = [0, 0]
+# laser_mode = "on_fire"   # uncomment to override [laser] mode for this gun
+
+[guns.p2]
+color = "green"
+hue_ranges = [[45, 85]]
+serial_port = "auto"
+offset = [0, 0]
+# laser_mode = "on_fire"
+
+[calibration]
+grid_cols = 3
+grid_rows = 3
+stable_frames = 8        # consecutive stable detections before accepting a target
+# Filled in by the calibration app. captured_* is the screen resolution the
+# homography targets; camera_* is the camera mode it was measured in.
+homography = []
+captured_width = 0
+captured_height = 0
+camera_width = 0
+camera_height = 0
+
+[filter]
+# One Euro filter params (Phase 3). min_cutoff lower = more smoothing at rest;
+# beta higher = less lag during fast motion.
+min_cutoff = 1.0
+beta = 0.007
+d_cutoff = 1.0
+
+[injection]
+backend = "windows"
+click_hold_ms = 20

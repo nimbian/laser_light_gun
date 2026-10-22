@@ -1,0 +1,64 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Detect preview",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "lightgun.detect",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Detect preview (Pico lasers on)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "lightgun.detect",
+            "args": ["--laser"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Calibrate",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "lightgun.calibrate",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Gun monitor",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "lightgun.guns",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Run (dry run)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "lightgun.app",
+            "args": ["--dry-run"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Run",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "lightgun.app",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Synthetic frame demo",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tests.tools.gen_synthetic",
+            "args": ["--show"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
