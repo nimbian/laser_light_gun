@@ -1,5 +1,13 @@
 # Light gun system configuration.
-# [filter] is a placeholder for Phase 3. Edit values here rather than in code.
+# This is the bundled default. Your own settings live in
+# %APPDATA%\lightgun\config.toml (created from this file on first run; keys
+# added in later versions are filled in from here). The LightGun app edits that
+# file for you; [filter] is a placeholder for Phase 3.
+
+[display]
+# The monitor the game is on: "primary", or a Windows display device name such
+# as \\.\DISPLAY2 (the app lists them). Calibration and the cursor use it.
+monitor = "primary"
 
 [camera]
 # OpenCV device index. On Windows the C920 is usually 0.

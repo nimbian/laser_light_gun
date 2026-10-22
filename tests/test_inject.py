@@ -8,19 +8,38 @@ import time
 
 import pytest
 
-from lightgun.app import TriggerHandler
+from lightgun.engine import TriggerHandler
 from lightgun.guns import laser_settings
 from lightgun.mapping import ScreenPoint
 
 
-def test_to_absolute_corners_and_clamp():
+def test_to_absolute_single_monitor_corners_and_clamp():
     from lightgun.inject.windows import to_absolute
+    from lightgun.screen import Monitor
 
-    assert to_absolute(0, 0, 1920, 1080) == (0, 0)
-    assert to_absolute(1919, 1079, 1920, 1080) == (65535, 65535)
-    ax, ay = to_absolute(959.5, 539.5, 1920, 1080)
+    mon = Monitor("m", 0, 0, 1920, 1080, True)
+    desk = (0, 0, 1920, 1080)
+    assert to_absolute(0, 0, mon, desk) == (0, 0)
+    assert to_absolute(1919, 1079, mon, desk) == (65535, 65535)
+    ax, ay = to_absolute(959.5, 539.5, mon, desk)
     assert abs(ax - 32768) <= 1 and abs(ay - 32768) <= 1
-    assert to_absolute(-50, 5000, 1920, 1080) == (0, 65535)
+    assert to_absolute(-50, 5000, mon, desk) == (0, 65535)
+
+
+def test_to_absolute_secondary_monitor_left_of_primary():
+    from lightgun.inject.windows import to_absolute
+    from lightgun.screen import Monitor
+
+    # Like this machine: 1920-wide monitor at x=-1920, 3440x1440 primary at 0.
+    left = Monitor("left", -1920, 0, 1920, 1080, False)
+    primary = Monitor("primary", 0, 0, 3440, 1440, True)
+    desk = (-1920, 0, 1920 + 3440, 1440)
+    assert to_absolute(0, 0, left, desk) == (0, 0)
+    x_edge, _ = to_absolute(0, 0, primary, desk)
+    assert abs(x_edge - round(1920 * 65535 / (desk[2] - 1))) <= 1
+    assert to_absolute(3439, 1439, primary, desk) == (65535, 65535)
+    _, y = to_absolute(0, 1079, left, desk)  # bottom of the shorter monitor
+    assert abs(y - round(1079 * 65535 / 1439)) <= 1
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows struct layout")

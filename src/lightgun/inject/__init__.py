@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from ..screen import Monitor, virtual_desktop
+
 
 class Injector(Protocol):
     def move(self, x: float, y: float) -> None: ...
@@ -28,12 +30,12 @@ class DryRunInjector:
         print(f"[inject] {'DOWN' if down else 'UP  '} at {pos}")
 
 
-def make_injector(cfg: dict[str, Any], screen_size: tuple[int, int], dry_run: bool) -> Injector:
+def make_injector(cfg: dict[str, Any], monitor: Monitor, dry_run: bool) -> Injector:
     if dry_run:
         return DryRunInjector()
     backend = str(cfg.get("injection", {}).get("backend", "windows")).lower()
     if backend == "windows":
         from .windows import WindowsInjector
 
-        return WindowsInjector(screen_size)
+        return WindowsInjector(monitor, virtual_desktop())
     raise ValueError(f"Unknown injection backend {backend!r}")

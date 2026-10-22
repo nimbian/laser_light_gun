@@ -69,55 +69,84 @@ Target OS: **Windows**. Language: **Python 3.11+**.
   each Pico (each presents as a USB HID absolute pointing device); MAME rawinput
   binds P1/P2 separately.
 - **Phase 5 — polish.** Off-screen reload, per-game offsets, recoil solenoid.
-- **Phase 6 — packaged Windows app (end goal, stated by the user).** A single
-  Windows executable with every config option and calibration built in, so no
-  Python install and no hand-editing of TOML. Likely shape: PyInstaller (or
-  Nuitka) bundle with a GUI for settings, live detection preview, gun
-  status/laser mode, and calibration, plus a tray/run mode. The GUI toolkit is
-  still undecided. Constraints to respect now so this stays easy:
-  - Config can't live next to the code in a frozen exe. `config.py` currently
-    resolves `config/default.toml` from the repo root; move the user's config
-    to `%APPDATA%\lightgun\config.toml`, seeded from a bundled default.
-  - Keep every module driven by the config dict and callable as a function
-    (`run_calibration`, `app.run`, `guns.connect`), with no work at import time.
-    The CLIs are thin wrappers that a GUI can replace.
-  - `calibrate._write_back` edits TOML line by line; a GUI settings editor
-    will want a real TOML writer (e.g. `tomlkit`, which preserves comments).
+- **Phase 6 — packaged Windows app (end goal, stated by the user)** — 🚧 first
+  version built on branch `windows-app`. A single Windows program with every
+  config option and calibration built in: no Python install, no hand-editing
+  TOML. Choices made (2026-10-21): **PySide6 (Qt)** GUI, **PyInstaller**
+  one-folder build (`-OneFile` optional), user config in
+  `%APPDATA%\lightgun\config.toml` seeded from a bundled default, saves via
+  **tomlkit** (comments preserved). Done: live preview with dots, status
+  (fps, exposure lock, guns, calibration), every setting in tabs (schema in
+  `settings.py`; a test fails if a config key has no field), Apply/Save/Revert,
+  game-monitor selection, fullscreen Qt calibration on that monitor, Play/Stop
+  with dry run and gun selector, rescan/identify guns, log pane + log file,
+  crosshair icon. Still to do: camera picker by device name, tray/run mode,
+  doing gun discovery off the UI thread (it currently blocks the UI ~0.6 s per
+  candidate port), an installer, and code signing.
 
-## Current code state (repo: C:\Users\Brian\source\lightgun)
+## Current code state
+
+Repo: `C:\Users\Brian\source\lightgun`, on GitHub at
+https://github.com/nimbian/laser_light_gun. `main` holds Phases 0–2 plus
+laser modes; the desktop app is on branch **`windows-app`** (not merged yet).
 
 ```
-config/default.toml      all tunables (camera/detection/laser/guns/calibration/injection)
 src/lightgun/
+  default_config.toml    bundled default config (all tunables); template for
+                         %APPDATA%\lightgun\config.toml. LIGHTGUN_CONFIG overrides.
+  config.py              load() merges defaults under the user file; save_values()
+                         writes via tomlkit (comments kept; None removes a key)
+  settings.py            Qt-free description of every option (label/type/range/help,
+                         live vs restart); drives the GUI tabs
   capture.py             threaded camera; locks manual exposure/focus, reports
                          whether exposure actually took (C920 quirk); live
                          set_exposure() applied from the grab thread
   detect.py              threshold -> blobs -> subpixel centroid -> annulus hue;
-                         pick_blob(); live preview: python -m lightgun.detect [--laser]
+                         pick_blob(); CLI preview: python -m lightgun.detect [--laser]
   mapping.py             homography compute/apply, resolution rescale, offscreen flag
-  calibrate.py           fullscreen 3x3 calibration; trigger = shot when a gun is
-                         connected, else auto-accept/SPACE; writes homography to config
+  calibrate.py           CalibrationSession (UI-free state machine) + OpenCV CLI;
+                         save_result() writes [calibration]
+  engine.py              Engine: camera + detection + guns + injection on a worker
+                         thread (used by CLI and GUI); TriggerHandler (both laser modes)
   guns.py                serial discovery (CircuitPython VID 0x239A + hello query),
                          reader threads, laser enable + mode (laser_settings());
                          CLI: python -m lightgun.guns [--laser]
-  inject/windows.py      SendInput absolute move + left button (ctypes)
+  inject/windows.py      SendInput absolute move + left button on any monitor
+                         (MOUSEEVENTF_VIRTUALDESK)
   inject/__init__.py     backend factory + DryRunInjector
-  app.py                 Phase 2 runtime: python -m lightgun.app [--gun p1] [--dry-run]
-  screen.py              DPI-aware primary display size (shared by calibrate/app)
-  config.py              TOML loader
+  screen.py              monitor enumeration in physical pixels (per-monitor DPI
+                         aware), [display] monitor resolution
+  app.py                 CLI runtime: python -m lightgun.app [--gun p1] [--dry-run]
+  gui/                   PySide6 app: main_window.py, settings_form.py,
+                         calibration_window.py, log.py, icon.py
+packaging/               lightgun.spec, launcher.py, make_icon.py, build_exe.ps1
 firmware/pico/boot.py    enables the USB CDC data port (protocol off the REPL)
 firmware/pico/main.py    trigger debounce, laser control + always/on_fire mode,
                          JSON serial (fw 0.3.0)
-tests/                   pytest suite + synthetic frame generator (gen_synthetic.py)
+tests/                   pytest suite + synthetic frame generator (gen_synthetic.py);
+                         conftest isolates the user config and runs Qt offscreen
 .vscode/                 settings.json (venv, pytest, src path) + launch.json configs
 ```
 
-- **Environment:** `.venv` exists (Python 3.14), package installed editable with
-  dev extras. **Tests pass (29/29)** and `ruff check` is clean. Everything runs
-  without hardware: detection on synthetic frames, homography, calibration
-  write-back, serial protocol against a fake port, SendInput struct
-  size/normalization, and trigger→click pairing in both laser modes. `SendInput` was also
-  smoke-tested on the real desktop.
+- **Environment:** `.venv` (Python 3.14) with `pip install -e ".[dev,build]"`
+  (PySide6-Essentials 6.12, tomlkit, PyInstaller 6.22). **Tests pass (45/45)**
+  and `ruff check` is clean, all without hardware.
+- **Executable:** `packaging\build_exe.ps1` builds `dist\LightGun\LightGun.exe`
+  (~240 MB folder) and smoke-tests it (`--smoke` builds the window without the
+  camera, then exits). This passes on this machine. `SendInput` was also tested
+  on the real desktop.
+
+### This machine (found 2026-10-21)
+
+- **Three monitors:** `\\.\DISPLAY1` Dell AW3423DW 3440×1440 at (0,0),
+  primary; `\\.\DISPLAY3` Acer X233HZ 1080×1920 portrait at (-1080,-488);
+  `\\.\DISPLAY2` Acer XB270HU 2560×1440 at (0,-1440). All at 100% scaling.
+- Qt names screens by **model**, not device name, so `qscreen_for()` matches by
+  geometry (native origin + size×dpr). Verified for all three monitors.
+- **Camera index 0 is the NVIDIA Broadcast virtual camera** (spams `[VCAMDS]`
+  logs), so the C920 is probably index 1 or 2. A camera picker that shows
+  device names (DirectShow enumeration, e.g. `pygrabber`) is the next app
+  improvement.
 
 ### Fixed in the 2026-10-21 review
 
@@ -139,11 +168,6 @@ tests/                   pytest suite + synthetic frame generator (gen_synthetic
 
 ### Known limitations / open questions
 
-- **Primary display only.** The calibration window and SendInput's absolute
-  coordinates both target the primary monitor. This machine's primary is
-  3440×1440 with a second monitor to its left. If the game display (TV /
-  projector) isn't primary, either make it primary or add monitor selection
-  (EnumDisplayMonitors + `MOUSEEVENTF_VIRTUALDESK`).
 - **One homography shared by both guns.** Fine for single player. For Phase 4,
   calibrate per gun (`--gun`) and store a matrix per gun so each gun's sight
   offset is absorbed, as the calibration decision requires.
@@ -161,26 +185,37 @@ tests/                   pytest suite + synthetic frame generator (gen_synthetic
   (DTR); disconnecting also resets the mode to `always`.
 - (Phase 4 adds PC→Gun `{"c":"pos","x":..,"y":..}` for gun-side HID reporting.)
 
-## Immediate next steps (all need the hardware)
+## Immediate next steps
 
-1. Run `python -m lightgun.detect` with the C920 and prove the red dot separates
-   cleanly from bright game footage. **This is the make-or-break test.** The
-   C920's manual exposure over DirectShow is the likely sticking point. The
-   preview warns if exposure didn't lock; switch `backend` between dshow and
-   msmf and/or set exposure in the Logitech Camera Settings app. Tune live with
-   `[ ]` (threshold) and `- =` (exposure).
+Need the camera and a laser (a plain red laser pointer is enough for 1, 3, 4):
+
+1. Open the app (`lightgun-gui` or `dist\LightGun\LightGun.exe`), set the
+   Camera tab's index to the C920 (not 0, see above), and prove the red dot
+   separates cleanly from bright game footage. **This is the make-or-break
+   test.** The C920's manual exposure over DirectShow is the likely sticking
+   point. The status line says whether exposure locked; switch `backend`
+   between dshow and msmf and/or set exposure in the Logitech Camera Settings
+   app. Tune threshold and exposure live in the Detection and Camera tabs.
 2. Flash a Pico with `boot.py` + `main.py`, replug it, and check with
-   `python -m lightgun.guns --laser` that trigger events print.
-3. Run `python -m lightgun.calibrate` to produce a homography (shoot the targets).
-4. Run `python -m lightgun.app --dry-run`, then for real in a game (MAME).
+   `python -m lightgun.guns --laser` (or Rescan guns in the app) that trigger
+   events print.
+3. Pick the game monitor (Display tab), then Calibrate.
+4. Play with Dry run, then for real in a game (MAME).
    To try on-fire mode, set `[laser] mode = "on_fire"`; if shots get dropped,
    raise `fire_window_ms` (it must cover the camera's pipeline latency).
 5. Then Phase 3: One Euro filter (the `[filter]` params are already in the
    config), temporal sanity filtering, latency harness, and the switch to the
    ELP camera.
 
+Software that doesn't need hardware: camera picker by name, a stand-in
+trigger (mouse button/hotkey) for laser-pointer play, a record/replay tool
+for tuning detection on recorded clips, the One Euro filter, a screen-flash
+camera latency test, a tray mode, moving gun discovery off the UI thread, and
+merging `windows-app` into `main`.
+
 ## Working style notes
 
 - Files live on a Windows machine under `C:\Users\Brian\source`. VS Code is the
-  editor; the repo is not under git yet. Prefer prose over heavy bullet lists in
-  chat. Keep decisions above intact.
+  editor. Git remote: https://github.com/nimbian/laser_light_gun (`main`, plus
+  feature branches). Prefer prose over heavy bullet lists in chat. Keep
+  decisions above intact.
